@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="点呼記録">
+<title>点呼・業務記録</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<style>
+/* =========================================================
+   見た目は配達記録アプリ（delivery-log-shachiku-v1）に合わせる
+   ========================================================= */
+*, *::before, *::after { box-sizing: border-box; }
+:root {
+  --blue: #2563eb; --blue-dark: #1d4ed8; --blue-mid: #bfdbfe; --blue-light: #eff6ff;
+  --green: #059669; --green-dark: #047857; --green-mid: #a7f3d0; --green-light: #ecfdf5;
+  --amber: #d97706; --amber-dark: #92400e; --amber-mid: #fde68a; --amber-light: #fffbeb;
+  --danger: #dc2626;
+  --ink: #111827; --ink-2: #374151; --ink-3: #6b7280;
+  --border: #e5e7eb; --surface: #f9fafb; --white: #ffffff;
+  --r: 12px;
+  --sh: 0 1px 6px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.05);
+}
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
+  background: var(--surface); color: var(--ink); min-height: 100vh;
+  padding-bottom: calc(32px + env(safe-area-inset-bottom));
+  -webkit-text-size-adjust: 100%;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.wrap { max-width: 560px; margin: 0 auto; }
+
+/* ヘッダー・タブ */
+header { background: var(--ink); color: #fff; padding: calc(16px + env(safe-area-inset-top)) 20px 12px; position: sticky; top: 0; z-index: 100; }
+header .wrap { display: flex; align-items: baseline; gap: 10px; }
+header h1 { font-size: 17px; font-weight: 800; margin: 0; letter-spacing: .03em; }
+header .sub { font-size: 12px; color: rgba(255,255,255,.65); font-weight: 500; }
+.tab-bar { background: #fff; border-bottom: 1px solid var(--border); position: sticky; top: calc(53px + env(safe-area-inset-top)); z-index: 99; }
+.tab-bar .wrap { display: flex; }
+.tab { flex: 1; padding: 12px 6px 10px; border: none; background: none; font-size: 12px; font-weight: 700; color: var(--ink-3);
+  display: flex; flex-direction: column; align-items: center; gap: 3px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab svg { opacity: .45; }
+.tab.on { color: var(--blue); border-bottom-color: var(--blue); }
+.tab.on svg { opacity: 1; }
+
+/* 共通部品 */
+main { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.card { background: #fff; border-radius: var(--r); padding: 18px; box-shadow: var(--sh); }
+.card.tight { padding: 12px; }
+.lbl { font-size: 11px; font-weight: 700; color: var(--ink-3); letter-spacing: .07em; margin: 0 0 12px; }
+.muted { color: var(--ink-3); }
+.note { margin: 0; font-size: 12px; color: var(--ink-3); text-align: center; line-height: 1.6; }
+.back { background: none; border: none; padding: 0; min-height: 44px; font-size: 14px; font-weight: 700; color: var(--blue); text-align: left; }
+.primary { width: 100%; min-height: 60px; border: none; border-radius: var(--r); background: var(--ink); color: #fff;
+  font-size: 17px; font-weight: 800; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.primary small { font-size: 12px; font-weight: 600; color: rgba(255,255,255,.7); }
+.primary:disabled { background: #9ca3af; }
+.btn { width: 100%; min-height: 48px; border-radius: 10px; border: none; background: var(--ink); color: #fff; font-size: 15px; font-weight: 800; }
+.btn2 { width: 100%; min-height: 48px; border-radius: 10px; border: 1.5px solid var(--border); background: #fff; color: var(--ink); font-size: 15px; font-weight: 700; }
+.ghost-amber { min-height: 44px; padding: 0 16px; border: 1.5px solid var(--amber); border-radius: 10px; background: #fff; color: var(--amber-dark); font-size: 14px; font-weight: 700; white-space: nowrap; }
+select, .text { min-height: 44px; border: 1.5px solid var(--border); border-radius: 10px; padding: 0 10px; font-size: 15px; font-weight: 700; background: #fff; max-width: 100%; }
+textarea.text { padding: 10px; min-height: 80px; width: 100%; font-weight: 500; }
+.text:focus, select:focus, textarea:focus { outline: 2px solid var(--blue-mid); border-color: var(--blue); }
+
+/* ステップ */
+.steps { display: flex; align-items: flex-start; justify-content: space-between; }
+.step { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 84px; }
+.step .n { width: 36px; height: 36px; border-radius: 50%; background: #fff; border: 2px solid var(--border); color: var(--ink-3);
+  display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; }
+.step .t { font-size: 13px; font-weight: 700; color: var(--ink-3); }
+.step.cur .n { background: var(--blue); border-color: var(--blue); color: #fff; box-shadow: 0 0 0 5px #dbeafe; }
+.step.cur .t { color: var(--blue); font-weight: 800; }
+.step.done .n { background: var(--green); border-color: var(--green); color: #fff; }
+.step.done .t { color: var(--green-dark); }
+.steps .line { flex: 1; height: 2px; background: var(--border); margin-top: 17px; }
+.steps .line.done { background: var(--green); }
+
+/* 入力ブロック（青＝出発前、緑＝帰着後） */
+.blk { border: 1.5px solid var(--blue-mid); border-radius: var(--r); overflow: hidden; }
+.blk-h { padding: 10px 14px; background: var(--blue-light); color: var(--blue-dark); font-weight: 800; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.blk-h .dot { width: 10px; height: 10px; border-radius: 2px; background: var(--blue); }
+.blk.green { border-color: var(--green-mid); }
+.blk.green .blk-h { background: var(--green-light); color: var(--green-dark); }
+.blk.green .blk-h .dot { background: var(--green); }
+.row { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; border-top: 1px solid var(--border); gap: 12px; min-height: 56px; flex-wrap: wrap; }
+.row.top { border-top: none; }
+.row > label, .row > .rl { font-size: 15px; font-weight: 700; }
+.row .sub { width: 100%; }
+.chk { min-width: 76px; min-height: 44px; border-radius: 10px; border: 1.5px solid var(--border); background: #fff; color: var(--ink-3);
+  font-size: 14px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 4px; }
+.chk.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg button { min-height: 40px; min-width: 56px; padding: 0 12px; border-radius: 100px; border: 1.5px solid var(--border); background: #fff; color: var(--ink-2); font-size: 13px; font-weight: 700; }
+.seg button.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.seg button.on.warn { background: var(--amber); border-color: var(--amber); }
+
+/* メーター入力 */
+.meter { border-top: 1px solid var(--border); padding: 14px; display: flex; align-items: center; gap: 14px; }
+.mic { width: 56px; height: 56px; border-radius: 50%; border: none; background: var(--blue); color: #fff; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 12px rgba(37,99,235,.3); flex-shrink: 0; }
+.blk.green .mic { background: var(--green); box-shadow: 0 4px 12px rgba(5,150,105,.3); }
+.mic.rec { background: var(--danger) !important; animation: pulse 1s infinite; }
+@keyframes pulse { 50% { transform: scale(1.06); } }
+.meter .cap { font-size: 12px; font-weight: 700; color: var(--ink-3); }
+.meter input { width: 100%; border: none; background: none; padding: 0; font-size: 32px; font-weight: 800; letter-spacing: -.01em; color: var(--ink); }
+.meter input:focus { outline: none; }
+.meter input::placeholder { color: #d1d5db; }
+.unit { font-size: 14px; color: var(--ink-3); font-weight: 700; }
+.pill { min-height: 36px; padding: 0 12px; border-radius: 100px; border: 1.5px solid var(--blue-mid); background: var(--blue-light); color: var(--blue-dark); font-size: 12px; font-weight: 700; }
+.dist { margin: 0 14px 14px; padding: 10px 14px; border-radius: 10px; background: var(--green-light); display: flex; align-items: baseline; justify-content: space-between; color: var(--green-dark); }
+.dist b { font-size: 22px; }
+
+/* チップ */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { min-height: 40px; padding: 0 14px; border-radius: 100px; border: 1.5px solid var(--border); background: #fff; color: var(--ink-2); font-size: 13px; font-weight: 700; }
+.chip.on { background: var(--blue-light); border-color: #93c5fd; color: var(--blue-dark); }
+
+/* 状態表示 */
+.badge { padding: 3px 9px; border-radius: 100px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.b-blue { background: #dbeafe; color: var(--blue-dark); }
+.b-green { background: #d1fae5; color: var(--green-dark); }
+.b-amber { background: #fef3c7; color: var(--amber-dark); }
+.alert { background: var(--amber-light); border: 1.5px solid var(--amber-mid); border-radius: var(--r); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.alert b { display: block; font-size: 14px; color: var(--amber-dark); }
+.alert span { display: block; font-size: 12px; color: var(--amber-dark); margin-top: 2px; }
+.break-btn { width: 100%; min-height: 64px; border: none; border-radius: var(--r); background: var(--amber); color: #fff; font-size: 17px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.break-btn.end { background: var(--green); }
+.brk { margin-top: 10px; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; background: var(--amber-light); }
+.brk .tm { font-size: 14px; font-weight: 800; color: var(--amber-dark); white-space: nowrap; }
+.brk input { flex: 1; min-width: 0; min-height: 40px; border: 1.5px solid var(--amber-mid); border-radius: 8px; padding: 0 8px; background: #fff; font-size: 13px; }
+
+/* 振り返り一覧 */
+.list { padding: 6px 0; }
+.day { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: none; border-top: 1px solid #f3f4f6; background: none; text-align: left; min-height: 64px; }
+.day:first-child { border-top: none; }
+.day .d { width: 52px; flex-shrink: 0; }
+.day .d b { display: block; font-size: 16px; font-weight: 800; }
+.day .d i { font-style: normal; font-size: 11px; color: var(--ink-3); font-weight: 700; }
+.day .t { flex: 1; font-size: 14px; font-weight: 700; }
+.day .t small { display: block; font-size: 12px; color: var(--ink-3); font-weight: 600; margin-top: 2px; }
+.empty { padding: 28px 16px; text-align: center; color: var(--ink-3); font-size: 14px; }
+
+/* 編集シート */
+.sheet-bg { position: fixed; inset: 0; background: rgba(17,24,39,.45); z-index: 200; display: flex; align-items: flex-end; justify-content: center; }
+.sheet { background: var(--surface); width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; border-radius: 20px 20px 0 0; padding: 16px 16px calc(24px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; }
+.sheet h2 { margin: 4px 0 0; font-size: 17px; font-weight: 800; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field > span { font-size: 12px; font-weight: 700; color: var(--ink-3); }
+.field .text, .field select { width: 100%; }
+.hist { font-size: 12px; color: var(--ink-3); line-height: 1.7; margin: 0; padding-left: 18px; }
+
+/* 設定 */
+.set { width: 100%; display: flex; flex-direction: column; gap: 6px; padding: 12px 0; border-top: 1px solid #f3f4f6; }
+.set:first-of-type { border-top: none; }
+.set label { font-size: 14px; font-weight: 700; }
+.set small { font-size: 12px; color: var(--ink-3); }
+
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 100px; font-size: 14px; font-weight: 700; z-index: 300; box-shadow: var(--sh); max-width: 90vw; text-align: center; }
+.sr { position: absolute; left: -9999px; }
+
+/* 印刷（A4横の月次一覧） */
+#print { display: none; }
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+  body { background: #fff; padding: 0; }
+  header, .tab-bar, #app, .toast, .sheet-bg { display: none !important; }
+  #print { display: block; font-size: 8.5pt; color: #000; }
+  #print h1 { font-size: 13pt; margin: 0 0 2mm; }
+  #print .meta { margin: 0 0 3mm; font-size: 9pt; }
+  #print table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  #print th, #print td { border: 0.5pt solid #555; padding: 1mm 1.2mm; vertical-align: top; word-break: break-all; }
+  #print th { background: #eee; font-weight: 700; }
+  #print .foot { margin-top: 3mm; font-size: 8pt; }
+}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1 id="title">点呼・業務記録</h1><span class="sub" id="hdate"></span></div></header>
+<nav class="tab-bar" id="tabs"><div class="wrap">
+  <button class="tab" data-tab="today"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V11l7-7 7 7v10"/><path d="M9 21v-6h6v6"/></svg>今日</button>
+  <button class="tab" data-tab="review"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>振り返る</button>
+  <button class="tab" data-tab="export"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>書き出し</button>
+</div></nav>
+<div class="wrap" id="app"></div>
+<div id="print"></div>
+<input type="file" id="restoreFile" accept="application/json,.json" class="sr" aria-label="バックアップファイルを選ぶ">
+
+<script>
+'use strict';
+/* =========================================================
+   データ
+   - 保存先：このブラウザの localStorage（キー STORE_KEY）
+   - 形を変えるときは SCHEMA を上げ、migrate() に変換を足す
+   ========================================================= */
+const STORE_KEY = 'tenko-log-v1';
+const SCHEMA = 1;
+const APP_VERSION = '1.0.0';
+
+const DEFAULT_SETTINGS = {
+  driver: '',
+  vehicles: [],
+  places: ['掛川郵便局'],
+  waypoints: [],
+  lastBackupAt: null
+};
+
+function blankDB() { return { schema: SCHEMA, settings: { ...DEFAULT_SETTINGS }, days: {} }; }
+
+function migrate(db) {
+  if (!db || typeof db !== 'object') return blankDB();
+  db.settings = { ...DEFAULT_SETTINGS, ...(db.settings || {}) };
+  db.days = db.days || {};
+  // 例：if (db.schema < 2) { ...変換...; db.schema = 2; }
+  db.schema = SCHEMA;
+  return db;
+}
+
+function loadDB() {
+  try { return migrate(JSON.parse(localStorage.getItem(STORE_KEY))); }
+  catch (e) { return blankDB(); }
+}
+let DB = loadDB();
+function saveDB() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }
+  catch (e) { toast('保存できませんでした。容量かブラウザの設定を確認してください'); }
+}
+
+// 1日分の記録のひな形
+function newRecord(date) {
+  return {
+    date,
+    status: 'driving',            // driving＝走行中 / done＝帰着済み
+    driver: DB.settings.driver,
+    vehicle: '',
+    pre: { time: '', alcohol: false, health: '良好', inspection: false },
+    start: { time: '', place: '', meter: null },
+    waypoints: [],
+    breaks: [],                   // [{start:'12:00', end:'12:45', place:''}]
+    end: { time: '', place: '', meter: null },
+    post: { time: '' },
+    waiting: { has: false, note: '' },   // 荷待ち30分以上
+    handling: { has: false, note: '' },  // 荷役1時間以上
+    incident: { has: false, note: '' },  // 事故・異常
+    memo: '',
+    history: [],                  // 修正履歴 [{at, field, from, to}]
+    createdAt: new Date().toISOString()
+  };
+}
+
+/* =========================================================
+   日付・時刻
+   ========================================================= */
+const WD = ['日', '月', '火', '水', '木', '金', '土'];
+const pad = n => String(n).padStart(2, '0');
+function ymd(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function today() { return ymd(new Date()); }
+function nowHM() { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function parseYmd(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+function jpDate(s, withYear) { const d = parseYmd(s); return `${withYear ? d.getFullYear() + '年' : ''}${d.getMonth() + 1}月${d.getDate()}日（${WD[d.getDay()]}）`; }
+function shortDate(s) { const d = parseYmd(s); return { md: `${d.getMonth() + 1}/${d.getDate()}`, wd: WD[d.getDay()] }; }
+function stamp(iso) { const d = new Date(iso); return `${ymd(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function daysSince(iso) { if (!iso) return Infinity; return Math.floor((Date.now() - new Date(iso).getTime()) / 864e5); }
+
+/* =========================================================
+   小物
+   ========================================================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const num = v => { const n = parseInt(String(v ?? '').replace(/[^0-9]/g, ''), 10); return Number.isFinite(n) ? n : null; };
+const fmtNum = n => (n == null ? '' : n.toLocaleString('ja-JP'));
+function distance(r) { return (r.start.meter != null && r.end.meter != null && r.end.meter >= r.start.meter) ? r.end.meter - r.start.meter : null; }
+function toast(msg) {
+  document.querySelectorAll('.toast').forEach(x => x.remove());
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; t.setAttribute('role', 'status');
+  document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
+}
+const ICON_CHECK = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
+const ICON_MIC = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>';
+const ICON_CLOCK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>';
+
+function options(list, selected, includeBlank) {
+  const set = [...new Set([...(list || []), ...(selected ? [selected] : [])])];
+  return (includeBlank ? '<option value="">（選ぶ）</option>' : '') + set.map(v => `<option${v === selected ? ' selected' : ''}>${esc(v)}</option>`).join('');
+}
+
+/* 記録の並び */
+function sortedDates() { return Object.keys(DB.days).sort().reverse(); }
+// まだ帰着していない、今日より前の記録（いちばん新しいもの）
+function pendingPast() { return sortedDates().find(d => d < today() && DB.days[d].status !== 'done') || null; }
+function lastMeterEnd(beforeDate) {
+  const d = sortedDates().find(x => x < beforeDate && DB.days[x].end.meter != null);
+  return d ? DB.days[d].end.meter : null;
+}
+function lastDone(beforeDate) { const d = sortedDates().find(x => x < beforeDate && DB.days[x].status === 'done'); return d ? DB.days[d] : null; }
+function needsBackup() { return Object.keys(DB.days).length > 0 && daysSince(DB.settings.lastBackupAt) >= 7; }
+
+/* =========================================================
+   画面の状態
+   ========================================================= */
+const UI = {
+  tab: 'today',
+  view: 'home',        // home / pre / drive / post
+  workDate: null,      // 帰着後チェックをする日（過去日の入力にも使う）
+  draft: null,         // 入力途中の値
+  range: 7,            // 振り返りの期間（7 / 30 / 0＝全期間）
+  month: today().slice(0, 7),
+  showMemo: false
+};
+
+function setTab(t) { UI.tab = t; if (t === 'today') UI.view = 'home'; render(); window.scrollTo(0, 0); }
+
+function render() {
+  $('#hdate').textContent = jpDate(today(), true);
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === UI.tab));
+  const showTabs = !(UI.tab === 'today' && UI.view !== 'home' && UI.view !== 'drive');
+  $('#tabs').style.display = showTabs ? '' : 'none';
+  $('#title').textContent = { pre: '出発前チェック', post: '帰着後チェック' }[UI.view] && UI.tab === 'today' ? { pre: '出発前チェック', post: '帰着後チェック' }[UI.view] : '点呼・業務記録';
+  const html = UI.tab === 'review' ? viewReview() : UI.tab === 'export' ? viewExport()
+    : UI.view === 'pre' ? viewPre() : UI.view === 'drive' ? viewDrive() : UI.view === 'post' ? viewPost() : viewHome();
+  $('#app').innerHTML = html;
+}
+
+/* ---------- 今日（ホーム） ---------- */
+function viewHome() {
+  const t = today();
+  const rec = DB.days[t];
+  const stage = !rec ? 1 : rec.status === 'done' ? 4 : 2;
+  const stepCls = i => (stage > i ? 'done' : stage === i ? 'cur' : '');
+  const lineCls = i => (stage > i ? 'done' : '');
+  const pend = pendingPast();
+  const prev = lastDone(t);
+  let out = '<main>';
+
+  if (pend) {
+    out += `<div class="alert"><div><b>${esc(jpDate(pend))}の帰着後チェックがまだです</b><span>先に入力しておきましょう</span></div>
+      <button class="ghost-amber" data-act="openPost" data-date="${pend}">入力する</button></div>`;
+  }
+
+  out += `<section class="card"><p class="lbl">今日の進み具合</p>
+    <div class="steps">
+      <div class="step ${stepCls(1)}"><div class="n">${stage > 1 ? '✓' : '1'}</div><div class="t">出発前</div></div>
+      <div class="line ${lineCls(1)}"></div>
+      <div class="step ${stepCls(2)}"><div class="n">${stage > 2 ? '✓' : '2'}</div><div class="t">走行中</div></div>
+      <div class="line ${lineCls(2)}"></div>
+      <div class="step ${stepCls(3)}"><div class="n">${stage > 3 ? '✓' : '3'}</div><div class="t">帰着後</div></div>
+    </div>
+    <p class="note" style="margin-top:18px;font-size:14px;color:var(--ink-2)">${
+      stage === 1 ? '局のアルコールチェックが終わったら始めましょう'
+      : stage === 2 ? `${esc(rec.start.time)} に出発しました。局に戻ったら帰着後チェック`
+      : `今日の記録は完了しました（${esc(rec.start.time)} → ${esc(rec.end.time)}・${distance(rec) ?? '—'} km）`}</p></section>`;
+
+  if (stage === 1) out += `<button class="primary" data-act="go" data-view="pre">出発前チェックをはじめる<small>30秒で終わります</small></button>`;
+  if (stage === 2) out += `<button class="primary" data-act="go" data-view="drive">走行中の画面へ<small>休憩・経過地点の記録</small></button>`;
+  if (stage === 4) out += `<button class="btn2" data-act="edit" data-date="${t}">今日の記録を確認・修正する</button>`;
+
+  if (prev) {
+    const issues = [prev.waiting.has && '荷待ちあり', prev.handling.has && '荷役あり', prev.incident.has && '異常あり'].filter(Boolean);
+    out += `<section class="card"><p class="lbl">前回の記録</p>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:40px;height:40px;border-radius:10px;background:var(--green-light);color:var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0">${ICON_CHECK}</div>
+        <div><div style="font-size:15px;font-weight:800">${esc(jpDate(prev.date))} 記録完了</div>
+        <div class="muted" style="font-size:13px;margin-top:2px">${esc(prev.start.time)} → ${esc(prev.end.time)} ・ ${distance(prev) ?? '—'} km ・ ${issues.length ? esc(issues.join('・')) : '異常なし'}</div></div>
+      </div></section>`;
+  }
+  if (needsBackup()) out += backupAlert();
+  return out + '</main>';
+}
+
+function backupAlert() {
+  const d = daysSince(DB.settings.lastBackupAt);
+  return `<div class="alert"><div><b>${d === Infinity ? 'まだバックアップがありません' : `バックアップから${d}日たちました`}</b><span>iCloud Driveなどに保存しておきましょう</span></div>
+    <button class="ghost-amber" data-act="backup">保存する</button></div>`;
+}
+
+/* ---------- 出発前チェック ---------- */
+function startPre() {
+  const prevVehicle = (lastDone(today()) || {}).vehicle;
+  UI.draft = {
+    alcohol: false, inspection: false, health: '良好',
+    vehicle: prevVehicle || DB.settings.vehicles[0] || '',
+    place: (lastDone(today()) || {}).start?.place || DB.settings.places[0] || '',
+    meter: ''
+  };
+}
+function viewPre() {
+  if (!UI.draft) startPre();
+  const f = UI.draft;
+  const lastEnd = lastMeterEnd(today());
+  const ready = f.alcohol && f.inspection && f.vehicle && f.place && num(f.meter) != null;
+  return `<main>
+    <button class="back" data-act="home">← 今日に戻る</button>
+    <section class="card tight"><div class="blk">
+      <div class="blk-h"><span class="dot"></span>乗務前点呼</div>
+      <div class="row"><span class="rl">局のアルコールチェック</span>${chk('alcohol', f.alcohol)}</div>
+      <div class="row"><span class="rl">日常点検</span>${chk('inspection', f.inspection)}</div>
+      <div class="row"><span class="rl">体調</span><div class="seg">${['良好', 'やや不良', '不良'].map(h => `<button class="${f.health === h ? 'on' + (h !== '良好' ? ' warn' : '') : ''}" data-act="set" data-k="health" data-v="${h}">${h}</button>`).join('')}</div></div>
+      <div class="row"><label for="f-vehicle">車両</label>${DB.settings.vehicles.length
+        ? `<select id="f-vehicle" data-bind="vehicle">${options(DB.settings.vehicles, f.vehicle, true)}</select>`
+        : `<input id="f-vehicle" class="text" data-bind="vehicle" value="${esc(f.vehicle)}" placeholder="例：浜松480り7977" style="width:190px">`}</div>
+    </div></section>
+    <section class="card tight"><div class="blk">
+      <div class="blk-h"><span class="dot"></span>業務開始</div>
+      <div class="row"><label for="f-place">出発地点</label><select id="f-place" data-bind="place">${options(DB.settings.places, f.place, true)}</select></div>
+      ${meterInput('meter', 'メーター開始', f.meter)}
+      ${lastEnd != null ? `<div style="padding:0 14px 14px"><button class="pill" data-act="useLast" data-v="${lastEnd}">前回の終了値 ${fmtNum(lastEnd)} を使う</button></div>` : ''}
+    </div></section>
+    <p class="note">出発の時刻はボタンを押した時刻で記録されます（あとで直せます）</p>
+    <button class="primary" data-act="depart" ${ready ? '' : 'disabled'}>出発する<small>${ready ? '乗務前点呼と業務開始を記録' : 'チェックとメーターを入れると押せます'}</small></button>
+  </main>`;
+}
+function chk(k, on) {
+  return `<button class="chk ${on ? 'on' : ''}" data-act="toggle" data-k="${k}" aria-pressed="${on}">${on ? ICON_CHECK + '済' : '未'}</button>`;
+}
+function meterInput(k, cap, val) {
+  return `<div class="meter">
+    ${'webkitSpeechRecognition' in window || 'SpeechRecognition' in window ? `<button class="mic" data-act="voice" data-k="${k}" aria-label="${cap}を音声で入力">${ICON_MIC}</button>` : ''}
+    <div style="flex:1;min-width:0"><label class="cap" for="f-${k}">${cap}</label>
+    <div style="display:flex;align-items:baseline;gap:4px"><input id="f-${k}" data-bind="${k}" data-num="1" inputmode="numeric" pattern="[0-9]*" placeholder="000000" value="${esc(val === '' || val == null ? '' : fmtNum(num(val)))}"><span class="unit">km</span></div></div>
+  </div>`;
+}
+
+function depart() {
+  const f = UI.draft, t = today(), now = nowHM();
+  const r = newRecord(t);
+  r.vehicle = f.vehicle.trim();
+  r.pre = { time: now, alcohol: true, health: f.health, inspection: true };
+  r.start = { time: now, place: f.place, meter: num(f.meter) };
+  DB.days[t] = r;
+  if (r.vehicle && !DB.settings.vehicles.includes(r.vehicle)) DB.settings.vehicles.push(r.vehicle);
+  saveDB();
+  UI.draft = null; UI.view = 'drive';
+  toast(`${now} 出発を記録しました`);
+  render(); window.scrollTo(0, 0);
+}
+
+/* ---------- 走行中 ---------- */
+function viewDrive() {
+  const r = DB.days[today()];
+  if (!r || r.status === 'done') { UI.view = 'home'; return viewHome(); }
+  const open = r.breaks.length && !r.breaks[r.breaks.length - 1].end;
+  const wps = [...new Set([...DB.settings.waypoints, ...r.waypoints])];
+  return `<main>
+    <section class="card" style="display:flex;align-items:center;gap:14px">
+      <span class="badge" style="background:var(--blue);color:#fff;font-size:12px;padding:4px 10px">走行中</span>
+      <div><div style="font-size:15px;font-weight:800">${esc(r.start.time)} ${esc(r.start.place)}を出発</div>
+      <div class="muted" style="font-size:12px;margin-top:2px">乗務前点呼 済 ・ メーター ${fmtNum(r.start.meter)} km</div></div>
+    </section>
+    <section class="card"><p class="lbl">休憩</p>
+      <button class="break-btn ${open ? 'end' : ''}" data-act="break">${ICON_CLOCK}${open ? '休憩を終える' : '休憩をはじめる'}</button>
+      ${r.breaks.map((b, i) => `<div class="brk"><span class="tm">${esc(b.start)} – ${esc(b.end || '休憩中')}</span>
+        <input aria-label="休憩した場所" placeholder="休憩した場所" value="${esc(b.place)}" data-break="${i}" list="placeList"></div>`).join('')}
+      <datalist id="placeList">${DB.settings.places.map(p => `<option value="${esc(p)}">`).join('')}</datalist>
+    </section>
+    <section class="card"><p class="lbl">主な経過地点（いくつでも）</p>
+      <div class="chips">${wps.map(w => `<button class="chip ${r.waypoints.includes(w) ? 'on' : ''}" data-act="wp" data-v="${esc(w)}" aria-pressed="${r.waypoints.includes(w)}">${esc(w)}</button>`).join('')}</div>
+      <div style="display:flex;gap:8px;margin-top:10px"><input class="text" id="wpNew" placeholder="地域名を追加" style="flex:1;min-width:0" aria-label="経過地点を追加"><button class="chip" data-act="wpAdd">＋ 追加</button></div>
+    </section>
+    <button class="primary" data-act="openPost" data-date="${r.date}">帰着後チェックへ<small>局に戻ったら</small></button>
+  </main>`;
+}
+
+/* ---------- 帰着後チェック ---------- */
+function startPost(date) {
+  const r = DB.days[date];
+  UI.workDate = date;
+  UI.showMemo = !!r.memo;
+  UI.draft = {
+    place: r.end.place || r.start.place || DB.settings.places[0] || '',
+    meter: r.end.meter ?? '',
+    waiting: { ...r.waiting }, handling: { ...r.handling }, incident: { ...r.incident },
+    memo: r.memo || '',
+    time: date === today() ? '' : (r.end.time || '')
+  };
+}
+function viewPost() {
+  const date = UI.workDate, r = DB.days[date];
+  if (!r) { UI.view = 'home'; return viewHome(); }
+  if (!UI.draft) startPost(date);
+  const f = UI.draft, past = date !== today();
+  const m = num(f.meter);
+  const dist = m != null && r.start.meter != null ? m - r.start.meter : null;
+  const ready = f.place && m != null && dist != null && dist >= 0 && (!past || /^\d{2}:\d{2}$/.test(f.time));
+  const yn = k => `<div class="seg"><button class="${!f[k].has ? 'on' : ''}" data-act="yn" data-k="${k}" data-v="0">なし</button><button class="${f[k].has ? 'on warn' : ''}" data-act="yn" data-k="${k}" data-v="1">あり</button></div>
+    ${f[k].has ? `<input class="text sub" data-bind="${k}.note" value="${esc(f[k].note)}" placeholder="${k === 'incident' ? '何があったか' : '時刻・場所・内容'}">` : ''}`;
+  return `<main>
+    <button class="back" data-act="${past ? 'home' : 'backDrive'}">← ${past ? '今日に戻る' : '走行中に戻る'}</button>
+    ${past ? `<div class="alert"><div><b>${esc(jpDate(date))}の記録です</b><span>帰着した時刻を入れてください</span></div></div>` : ''}
+    <section class="card tight"><div class="blk green">
+      <div class="blk-h"><span class="dot"></span>業務終了</div>
+      ${past ? `<div class="row"><label for="f-time">帰着時刻</label><input type="time" id="f-time" class="text" data-bind="time" value="${esc(f.time)}"></div>` : ''}
+      <div class="row"><label for="f-eplace">帰着地点</label><select id="f-eplace" data-bind="place">${options(DB.settings.places, f.place, true)}</select></div>
+      ${meterInput('meter', 'メーター終了', f.meter)}
+      <div class="dist" id="distBox"><span style="font-size:13px;font-weight:700">今日の走行距離（自動）</span><b>${dist != null && dist >= 0 ? dist : '—'}<span style="font-size:13px;margin-left:3px">km</span></b></div>
+      ${dist != null && dist < 0 ? '<p class="note" style="color:var(--danger);padding:0 14px 12px">メーター開始より小さい値です</p>' : ''}
+    </div></section>
+    <section class="card tight">
+      <div class="row top"><span class="rl">荷待ち 30分以上</span>${yn('waiting')}</div>
+      <div class="row"><span class="rl">荷役 1時間以上</span>${yn('handling')}</div>
+      <div class="row"><span class="rl">事故・異常</span>${yn('incident')}</div>
+      <div class="row">${UI.showMemo ? `<textarea class="text" data-bind="memo" placeholder="備考" aria-label="備考">${esc(f.memo)}</textarea>`
+        : '<button class="back" style="color:var(--ink-3)" data-act="memo">＋ 備考を書く（任意）</button>'}</div>
+    </section>
+    <button class="primary" data-act="arrive" ${ready ? '' : 'disabled'}>帰着して記録する<small>${past ? '業務終了と乗務後点呼を記録' : '業務終了と乗務後点呼の時刻を記録'}</small></button>
+  </main>`;
+}
+function arrive() {
+  const date = UI.workDate, r = DB.days[date], f = UI.draft;
+  const time = date === today() ? nowHM() : f.time;
+  r.end = { time, place: f.place, meter: num(f.meter) };
+  r.post = { time };
+  r.waiting = { has: !!f.waiting.has, note: f.waiting.has ? f.waiting.note.trim() : '' };
+  r.handling = { has: !!f.handling.has, note: f.handling.has ? f.handling.note.trim() : '' };
+  r.incident = { has: !!f.incident.has, note: f.incident.has ? f.incident.note.trim() : '' };
+  r.memo = (f.memo || '').trim();
+  const open = r.breaks[r.breaks.length - 1];
+  if (open && !open.end) open.end = time;
+  if (date !== today()) r.history.push({ at: new Date().toISOString(), field: '帰着後チェック', from: '', to: `後日入力（帰着 ${time}）` });
+  r.status = 'done';
+  saveDB();
+  UI.draft = null; UI.view = 'home'; UI.workDate = null;
+  toast(`${time} 帰着を記録しました。おつかれさまでした`);
+  render(); window.scrollTo(0, 0);
+}
+
+/* ---------- 振り返る ---------- */
+function viewReview() {
+  const t = today();
+  let dates = sortedDates();
+  if (UI.range) { const from = new Date(); from.setDate(from.getDate() - (UI.range - 1)); dates = dates.filter(d => d >= ymd(from)); }
+  const rows = dates.map(d => {
+    const r = DB.days[d], s = shortDate(d), dist = distance(r);
+    const issues = [r.waiting.has && '荷待ちあり', r.handling.has && '荷役あり', r.incident.has && '異常あり'].filter(Boolean);
+    const fixes = r.history.length ? ` ・ 修正${r.history.length}件` : '';
+    let badge, sub;
+    if (r.status === 'done') { badge = '<span class="badge b-green">完了</span>'; sub = `${dist ?? '—'} km ・ ${issues.length ? issues.join('・') : '異常なし'}${fixes}`; }
+    else if (d === t) { badge = '<span class="badge b-blue">走行中</span>'; sub = '帰着後チェックがまだです'; }
+    else { badge = '<span class="badge b-amber">未入力</span>'; sub = '帰着後チェックが未入力'; }
+    return `<button class="day" data-act="edit" data-date="${d}"><span class="d"><b>${s.md}</b><i>${s.wd}</i></span>
+      <span class="t">${esc(r.start.time)} → ${esc(r.end.time || '—')}<small>${esc(sub)}</small></span>${badge}</button>`;
+  }).join('');
+  return `<main>
+    <div class="seg">${[[7, '直近7日'], [30, '30日'], [0, '全期間']].map(([v, l]) => `<button class="${UI.range === v ? 'on' : ''}" data-act="range" data-v="${v}">${l}</button>`).join('')}</div>
+    <section class="card list" style="padding:6px 0">${rows || '<div class="empty">この期間の記録はまだありません</div>'}</section>
+    <p class="note">日付をタップすると編集できます。直した内容は修正履歴に残ります</p>
+  </main>`;
+}
+
+/* ---------- 編集シート ---------- */
+const EDIT_FIELDS = [
+  ['driver', '運転者'], ['vehicle', '車両'],
+  ['pre.time', '乗務前_時刻'], ['pre.health', '体調'],
+  ['start.time', '業務開始_時刻'], ['start.place', '業務開始_地点'], ['start.meter', 'メーター開始'],
+  ['end.time', '業務終了_時刻'], ['end.place', '業務終了_地点'], ['end.meter', 'メーター終了'],
+  ['post.time', '乗務後_時刻'], ['waypoints', '主な経過地点'], ['breaks', '休憩'],
+  ['waiting', '荷待ち'], ['handling', '荷役'], ['incident', '事故・異常'], ['memo', '備考']
+];
+const getPath = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
+function setPath(o, p, v) { const ks = p.split('.'); const last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; }
+function brkText(b) { return b.map(x => `${x.start}-${x.end || ''}${x.place ? ' ' + x.place : ''}`).join(' / '); }
+function parseBreaks(s) {
+  return String(s || '').split(/[\/／\n]/).map(x => x.trim()).filter(Boolean).map(x => {
+    const m = x.match(/^(\d{1,2}:\d{2})\s*[-–~〜]\s*(\d{1,2}:\d{2})?\s*(.*)$/);
+    return m ? { start: m[1].padStart(5, '0'), end: (m[2] || '').padStart(m[2] ? 5 : 0, '0'), place: m[3].trim() } : null;
+  }).filter(Boolean);
+}
+const ynText = o => (o.has ? 'あり' + (o.note ? '（' + o.note + '）' : '') : 'なし');
+
+function openEdit(date) {
+  const r = DB.days[date];
+  const timeIn = (k, l) => `<label class="field"><span>${l}</span><input type="time" class="text" name="${k}" value="${esc(getPath(r, k))}"></label>`;
+  const yn = (k, l) => `<label class="field"><span>${l}</span><select name="${k}.has"><option value="0"${!r[k].has ? ' selected' : ''}>なし</option><option value="1"${r[k].has ? ' selected' : ''}>あり</option></select>
+    <input class="text" name="${k}.note" value="${esc(r[k].note)}" placeholder="内容"></label>`;
+  const bg = document.createElement('div');
+  bg.className = 'sheet-bg';
+  bg.innerHTML = `<form class="sheet" id="editForm" data-date="${date}">
+    <h2>${esc(jpDate(date, true))}の記録</h2>
+    <section class="card tight"><div class="grid2">
+      <label class="field"><span>運転者</span><input class="text" name="driver" value="${esc(r.driver)}"></label>
+      <label class="field"><span>車両</span><input class="text" name="vehicle" value="${esc(r.vehicle)}"></label>
+      ${timeIn('pre.time', '乗務前の時刻')}
+      <label class="field"><span>体調</span><select name="pre.health">${options(['良好', 'やや不良', '不良'], r.pre.health)}</select></label>
+      ${timeIn('start.time', '業務開始の時刻')}
+      <label class="field"><span>出発地点</span><input class="text" name="start.place" value="${esc(r.start.place)}" list="placeList2"></label>
+      <label class="field"><span>メーター開始</span><input class="text" name="start.meter" inputmode="numeric" value="${esc(r.start.meter ?? '')}"></label>
+      <label class="field"><span>メーター終了</span><input class="text" name="end.meter" inputmode="numeric" value="${esc(r.end.meter ?? '')}"></label>
+      ${timeIn('end.time', '業務終了の時刻')}
+      <label class="field"><span>帰着地点</span><input class="text" name="end.place" value="${esc(r.end.place)}" list="placeList2"></label>
+      ${timeIn('post.time', '乗務後の時刻')}
+    </div>
+    <datalist id="placeList2">${DB.settings.places.map(p => `<option value="${esc(p)}">`).join('')}</datalist></section>
+    <section class="card tight" style="display:flex;flex-direction:column;gap:10px">
+      <label class="field"><span>主な経過地点（「、」区切り）</span><input class="text" name="waypoints" value="${esc(r.waypoints.join('、'))}"></label>
+      <label class="field"><span>休憩（例：12:00-12:45 道の駅 / 15:10-15:20）</span><input class="text" name="breaks" value="${esc(brkText(r.breaks))}"></label>
+      ${yn('waiting', '荷待ち30分以上')}${yn('handling', '荷役1時間以上')}${yn('incident', '事故・異常')}
+      <label class="field"><span>備考</span><textarea class="text" name="memo">${esc(r.memo)}</textarea></label>
+    </section>
+    ${r.history.length ? `<section class="card tight"><p class="lbl" style="margin-bottom:6px">修正履歴</p><ol class="hist">${r.history.map(h => `<li>${esc(stamp(h.at))} ${esc(h.field)}：${esc(h.from || '（空）')} → ${esc(h.to || '（空）')}</li>`).join('')}</ol></section>` : ''}
+    <div class="grid2"><button type="button" class="btn2" data-act="closeSheet">閉じる</button><button type="submit" class="btn">保存する</button></div>
+    <button type="button" class="back" style="color:var(--danger);align-self:center" data-act="deleteDay" data-date="${date}">この日の記録を削除</button>
+  </form>`;
+  document.body.appendChild(bg);
+  bg.addEventListener('click', e => { if (e.target === bg) bg.remove(); });
+  bg.querySelector('form').addEventListener('submit', e => { e.preventDefault(); saveEdit(e.target); bg.remove(); });
+}
+function saveEdit(form) {
+  const date = form.dataset.date, r = DB.days[date];
+  const before = JSON.parse(JSON.stringify(r));
+  const v = n => form.elements[n].value;
+  r.driver = v('driver').trim(); r.vehicle = v('vehicle').trim();
+  r.pre.time = v('pre.time'); r.pre.health = v('pre.health');
+  r.start.time = v('start.time'); r.start.place = v('start.place').trim(); r.start.meter = num(v('start.meter'));
+  r.end.time = v('end.time'); r.end.place = v('end.place').trim(); r.end.meter = num(v('end.meter'));
+  r.post.time = v('post.time');
+  r.waypoints = v('waypoints').split(/[、,，]/).map(s => s.trim()).filter(Boolean);
+  r.breaks = parseBreaks(v('breaks'));
+  ['waiting', 'handling', 'incident'].forEach(k => { r[k] = { has: v(k + '.has') === '1', note: v(k + '.note').trim() }; });
+  r.memo = v('memo').trim();
+  if (r.status !== 'done' && r.end.time && r.end.meter != null) { r.status = 'done'; if (!r.post.time) r.post.time = r.end.time; }
+  const show = (k, o) => k === 'waypoints' ? o.waypoints.join('、') : k === 'breaks' ? brkText(o.breaks)
+    : ['waiting', 'handling', 'incident'].includes(k) ? ynText(o[k]) : String(getPath(o, k) ?? '');
+  const at = new Date().toISOString();
+  let n = 0;
+  EDIT_FIELDS.forEach(([k, label]) => { const a = show(k, before), b = show(k, r); if (a !== b) { r.history.push({ at, field: label, from: a, to: b }); n++; } });
+  saveDB();
+  toast(n ? `${n}か所を修正しました（履歴に残しました）` : '変更はありませんでした');
+  render();
+}
+
+/* ---------- 書き出し・設定 ---------- */
+function monthsAvailable() {
+  const ms = new Set([today().slice(0, 7), ...Object.keys(DB.days).map(d => d.slice(0, 7))]);
+  return [...ms].sort().reverse();
+}
+function viewExport() {
+  const d = daysSince(DB.settings.lastBackupAt);
+  const s = DB.settings;
+  const count = Object.keys(DB.days).filter(x => x.startsWith(UI.month)).length;
+  return `<main>
+    <section class="card"><p class="lbl">月ごとの書き出し</p>
+      <label class="sr" for="monthSel">対象の月</label>
+      <select id="monthSel" data-act-change="month" style="width:100%;margin-bottom:10px">${monthsAvailable().map(m => `<option value="${m}"${m === UI.month ? ' selected' : ''}>${m.replace('-', '年')}月（${Object.keys(DB.days).filter(x => x.startsWith(m)).length}日分）</option>`).join('')}</select>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn" data-act="csv" ${count ? '' : 'disabled'}>CSVをダウンロード</button>
+        <button class="btn2" data-act="print" ${count ? '' : 'disabled'}>印刷用ページを開く（A4横）</button>
+      </div>
+      <p class="note" style="text-align:left;margin-top:10px">印刷画面から「PDFに保存」もできます</p>
+    </section>
+    <section class="card"><p class="lbl">バックアップ</p>
+      <div class="alert" style="padding:10px 12px;margin-bottom:10px;${d < 7 ? 'background:var(--green-light);border-color:var(--green-mid)' : ''}">
+        <span style="margin:0;font-size:13px;font-weight:700;${d < 7 ? 'color:var(--green-dark)' : ''}">${s.lastBackupAt ? '最終バックアップ ' + esc(jpDate(ymd(new Date(s.lastBackupAt)))) : 'まだバックアップがありません'}</span>
+        <span style="margin:0;font-size:12px;font-weight:800;${d < 7 ? 'color:var(--green-dark)' : ''}">${s.lastBackupAt ? (d === 0 ? '今日' : d + '日前') : ''}</span>
+      </div>
+      <div class="grid2"><button class="btn" data-act="backup">書き出す</button><button class="btn2" data-act="restore">復元する</button></div>
+      <p class="note" style="text-align:left;margin-top:10px">記録はこの端末のブラウザの中だけにあります。ブラウザのデータを消すと記録も消えるので、月に1回以上は書き出してください</p>
+    </section>
+    <section class="card"><p class="lbl" style="margin-bottom:4px">設定</p>
+      <div class="set"><label for="s-driver">運転者名</label><input id="s-driver" class="text" data-set="driver" value="${esc(s.driver)}" placeholder="氏名"></div>
+      <div class="set"><label for="s-vehicles">車両（1行に1台）</label><textarea id="s-vehicles" class="text" data-set="vehicles" placeholder="浜松480り7977">${esc(s.vehicles.join('\n'))}</textarea></div>
+      <div class="set"><label for="s-places">出発・帰着・休憩の地点（1行に1つ）</label><textarea id="s-places" class="text" data-set="places">${esc(s.places.join('\n'))}</textarea></div>
+      <div class="set"><label for="s-wps">経過地点の候補（1行に1つ）</label><textarea id="s-wps" class="text" data-set="waypoints" placeholder="よく回る地域名">${esc(s.waypoints.join('\n'))}</textarea><small>入力すると自動で保存されます</small></div>
+    </section>
+    <p class="note">点呼・業務記録 v${APP_VERSION}</p>
+  </main>`;
+}
+
+/* CSV（列の順番は docs/requirements.md と同じ） */
+const CSV_HEAD = ['日付', '運転者', '車両番号', '乗務前_時刻', '局アルコールチェック', '乗務前_体調', '日常点検', '業務開始_時刻', '業務開始_地点', '主な経過地点',
+  '休憩_時刻', '休憩_地点', '業務終了_時刻', '業務終了_地点', 'メーター_開始', 'メーター_終了', '走行距離_km', '乗務後_時刻',
+  '荷待ち30分以上', '荷役1時間以上', '事故・異常', '備考', '修正履歴'];
+function csvRow(r) {
+  return [r.date, r.driver, r.vehicle, r.pre.time, r.pre.alcohol ? '済' : '', r.pre.health, r.pre.inspection ? '済' : '',
+    r.start.time, r.start.place, r.waypoints.join('、'),
+    r.breaks.map(b => `${b.start}-${b.end || ''}`).join('／'), r.breaks.map(b => b.place || '').join('／'),
+    r.end.time, r.end.place, r.start.meter ?? '', r.end.meter ?? '', distance(r) ?? '', r.post.time,
+    ynText(r.waiting), ynText(r.handling), ynText(r.incident), r.memo,
+    r.history.map(h => `${stamp(h.at)} ${h.field}:${h.from}→${h.to}`).join('／')];
+}
+const csvCell = v => { const s = String(v ?? ''); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+function monthRecords(m) { return Object.keys(DB.days).filter(d => d.startsWith(m)).sort().map(d => DB.days[d]); }
+async function deliver(blob, filename) {
+  const file = new File([blob], filename, { type: blob.type });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: filename }); return true; }
+    catch (e) { if (e.name === 'AbortError') return false; }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  return true;
+}
+async function exportCSV() {
+  const rows = [CSV_HEAD, ...monthRecords(UI.month).map(csvRow)];
+  const text = '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+  await deliver(new Blob([text], { type: 'text/csv' }), `点呼業務記録_${UI.month}.csv`);
+}
+
+/* 印刷（A4横） */
+function openPrint() {
+  const rs = monthRecords(UI.month);
+  const drivers = [...new Set(rs.map(r => r.driver).filter(Boolean))].join('・') || '—';
+  const cars = [...new Set(rs.map(r => r.vehicle).filter(Boolean))].join('・') || '—';
+  const cols = '<colgroup><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:12%"><col style="width:10%"><col style="width:9%"><col style="width:9%"><col style="width:5%"><col style="width:12%"><col style="width:18%"></colgroup>';
+  $('#print').innerHTML = `<h1>業務記録・点呼記録　${UI.month.replace('-', '年')}月</h1>
+    <p class="meta">運転者：${esc(drivers)}　車両：${esc(cars)}　出力日：${esc(jpDate(today(), true))}</p>
+    <table>${cols}<thead><tr><th>日付</th><th>乗務前点呼<br>（時刻・アルコール・体調・点検）</th><th>業務開始<br>（時刻・地点）</th><th>主な経過地点</th><th>休憩<br>（時刻・地点）</th><th>業務終了<br>（時刻・地点）</th><th>メーター<br>（開始・終了）</th><th>距離<br>km</th><th>乗務後点呼<br>荷待ち・荷役</th><th>事故・異常・備考・修正</th></tr></thead>
+    <tbody>${rs.map(r => `<tr><td>${esc(shortDate(r.date).md)}（${shortDate(r.date).wd}）</td>
+      <td>${esc(r.pre.time)}<br>アルコール ${r.pre.alcohol ? '済' : '未'}<br>体調 ${esc(r.pre.health)}<br>点検 ${r.pre.inspection ? '済' : '未'}</td>
+      <td>${esc(r.start.time)}<br>${esc(r.start.place)}</td><td>${esc(r.waypoints.join('、'))}</td>
+      <td>${r.breaks.map(b => esc(`${b.start}-${b.end || ''} ${b.place || ''}`)).join('<br>')}</td>
+      <td>${esc(r.end.time)}<br>${esc(r.end.place)}</td><td>${fmtNum(r.start.meter)}<br>${fmtNum(r.end.meter)}</td><td>${distance(r) ?? ''}</td>
+      <td>${esc(r.post.time)}<br>荷待ち ${esc(ynText(r.waiting))}<br>荷役 ${esc(ynText(r.handling))}</td>
+      <td>${esc(ynText(r.incident))}${r.memo ? '<br>' + esc(r.memo) : ''}${r.history.length ? `<br>修正${r.history.length}件` : ''}</td></tr>`).join('')}</tbody></table>
+    <p class="foot">この記録は貨物軽自動車運送事業輸送安全規則にもとづく業務記録として1年間保存する。修正の内容はCSVの「修正履歴」に残っている。</p>`;
+  setTimeout(() => window.print(), 50);
+}
+
+/* バックアップ・復元 */
+async function backup() {
+  const stamp = new Date();
+  const payload = { app: 'tenko-log-v1', version: APP_VERSION, exportedAt: stamp.toISOString(), data: DB };
+  const name = `tenko-backup_${ymd(stamp)}.json`;
+  const ok = await deliver(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }), name);
+  if (ok) { DB.settings.lastBackupAt = stamp.toISOString(); saveDB(); toast('バックアップを書き出しました'); render(); }
+}
+function restore(file) {
+  const fr = new FileReader();
+  fr.onload = () => {
+    try {
+      const p = JSON.parse(fr.result);
+      const inc = migrate(p.data || p);
+      const dates = Object.keys(inc.days);
+      const dup = dates.filter(d => DB.days[d]);
+      if (!dates.length) { toast('記録が入っていないファイルです'); return; }
+      if (!confirm(`${dates.length}日分を読み込みます。${dup.length ? `うち${dup.length}日分はこの端末にもあり、ファイルの内容で上書きします。` : ''}よろしいですか？`)) return;
+      dates.forEach(d => { DB.days[d] = inc.days[d]; });
+      const s = DB.settings, t = inc.settings;
+      if (!s.driver && t.driver) s.driver = t.driver;
+      ['vehicles', 'places', 'waypoints'].forEach(k => { s[k] = [...new Set([...s[k], ...(t[k] || [])])]; });
+      saveDB(); toast(`${dates.length}日分を復元しました`); render();
+    } catch (e) { toast('読み込めませんでした。バックアップのファイルか確認してください'); }
+  };
+  fr.readAsText(file);
+}
+
+/* 音声入力（メーター） */
+function voice(k, btn) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return;
+  const rec = new SR(); rec.lang = 'ja-JP'; rec.interimResults = false; rec.maxAlternatives = 3;
+  btn.classList.add('rec');
+  rec.onresult = e => {
+    const alts = [...e.results[0]].map(a => a.transcript);
+    const n = alts.map(kanjiToNum).find(v => v != null);
+    if (n != null) { UI.draft[k] = String(n); render(); } else toast(`数字を聞き取れませんでした（${alts[0] || ''}）`);
+  };
+  rec.onerror = () => { btn.classList.remove('rec'); toast('音声入力が使えませんでした。数字をタップして入力してください'); };
+  rec.onend = () => btn.classList.remove('rec');
+  rec.start();
+}
+function kanjiToNum(s) {
+  s = String(s).replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[,，\s]/g, '');
+  const d = s.match(/\d+/g); if (d && d.join('').length >= 3) return parseInt(d.join(''), 10);
+  const D = { 〇: 0, 零: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  const U = { 十: 10, 百: 100, 千: 1000 };
+  let total = 0, sec = 0, cur = 0, hit = false;
+  for (const c of s.replace(/キロ|km|ｋｍ/gi, '')) {
+    if (/\d/.test(c)) { cur = cur * 10 + Number(c); hit = true; }
+    else if (c in D) { cur = cur * 10 + D[c]; hit = true; }
+    else if (c in U) { sec += (cur || 1) * U[c]; cur = 0; hit = true; }
+    else if (c === '万') { total += (sec + cur || 1) * 10000; sec = 0; cur = 0; hit = true; }
+  }
+  return hit ? total + sec + cur : null;
+}
+
+/* =========================================================
+   操作の受け口
+   ========================================================= */
+document.addEventListener('click', e => {
+  const tab = e.target.closest('.tab'); if (tab) { setTab(tab.dataset.tab); return; }
+  const el = e.target.closest('[data-act]'); if (!el || el.disabled) return;
+  const a = el.dataset.act, k = el.dataset.k, v = el.dataset.v;
+  switch (a) {
+    case 'go': UI.view = el.dataset.view; if (UI.view === 'pre') startPre(); render(); window.scrollTo(0, 0); break;
+    case 'home': UI.view = 'home'; UI.draft = null; render(); break;
+    case 'backDrive': UI.view = 'drive'; UI.draft = null; render(); break;
+    case 'toggle': UI.draft[k] = !UI.draft[k]; render(); break;
+    case 'set': UI.draft[k] = v; render(); break;
+    case 'useLast': UI.draft.meter = v; render(); break;
+    case 'depart': depart(); break;
+    case 'voice': voice(k, el); break;
+    case 'break': {
+      const r = DB.days[today()], last = r.breaks[r.breaks.length - 1];
+      if (last && !last.end) { last.end = nowHM(); toast(`${last.end} 休憩終了`); }
+      else { r.breaks.push({ start: nowHM(), end: '', place: '' }); toast(`${nowHM()} 休憩開始`); }
+      saveDB(); render(); break;
+    }
+    case 'wp': {
+      const r = DB.days[today()]; const i = r.waypoints.indexOf(v);
+      i >= 0 ? r.waypoints.splice(i, 1) : r.waypoints.push(v); saveDB(); render(); break;
+    }
+    case 'wpAdd': {
+      const w = $('#wpNew').value.trim(); if (!w) return;
+      if (!DB.settings.waypoints.includes(w)) DB.settings.waypoints.push(w);
+      const r = DB.days[today()]; if (!r.waypoints.includes(w)) r.waypoints.push(w);
+      saveDB(); render(); break;
+    }
+    case 'openPost': UI.tab = 'today'; UI.view = 'post'; UI.draft = null; startPost(el.dataset.date); render(); window.scrollTo(0, 0); break;
+    case 'yn': UI.draft[k].has = v === '1'; render(); break;
+    case 'memo': UI.showMemo = true; render(); break;
+    case 'arrive': arrive(); break;
+    case 'range': UI.range = Number(v); render(); break;
+    case 'edit': openEdit(el.dataset.date); break;
+    case 'closeSheet': el.closest('.sheet-bg').remove(); break;
+    case 'deleteDay': {
+      const d = el.dataset.date;
+      if (confirm(`${jpDate(d)}の記録を削除します。元に戻せません。`) && confirm('本当に削除しますか？（バックアップがあれば復元できます）')) {
+        delete DB.days[d]; saveDB(); el.closest('.sheet-bg').remove(); toast('削除しました'); render();
+      }
+      break;
+    }
+    case 'csv': exportCSV(); break;
+    case 'print': openPrint(); break;
+    case 'backup': backup(); break;
+    case 'restore': $('#restoreFile').click(); break;
+  }
+});
+
+// 入力欄の値を下書きに反映（再描画せず、関係する表示だけ更新）
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset.bind && UI.draft) {
+    const path = t.dataset.bind;
+    if (path.includes('.')) { const [a, b] = path.split('.'); UI.draft[a][b] = t.value; }
+    else UI.draft[path] = t.value;
+    if (t.dataset.num) { const n = num(t.value); const pos = t.value.length; t.value = n == null ? '' : fmtNum(n); if (pos) t.setSelectionRange(t.value.length, t.value.length); }
+    refreshButtons();
+  }
+  if (t.dataset.break != null) { DB.days[today()].breaks[Number(t.dataset.break)].place = t.value; saveDB(); }
+  if (t.dataset.set) {
+    const k = t.dataset.set;
+    DB.settings[k] = k === 'driver' ? t.value.trim() : t.value.split('\n').map(s => s.trim()).filter(Boolean);
+    saveDB();
+  }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.actChange === 'month') { UI.month = t.value; render(); }
+  if (t.tagName === 'SELECT' && t.dataset.bind) refreshButtons(true);
+});
+$('#restoreFile').addEventListener('change', e => { const f = e.target.files[0]; if (f) restore(f); e.target.value = ''; });
+
+// 入力中は全体を描き直さず、押せるかどうかと距離だけ更新する
+function refreshButtons(full) {
+  if (full) { const y = window.scrollY; render(); window.scrollTo(0, y); return; }
+  if (UI.view === 'pre') {
+    const f = UI.draft, ok = f.alcohol && f.inspection && f.vehicle && f.place && num(f.meter) != null;
+    const b = document.querySelector('[data-act="depart"]');
+    if (b) { b.disabled = !ok; b.querySelector('small').textContent = ok ? '乗務前点呼と業務開始を記録' : 'チェックとメーターを入れると押せます'; }
+  }
+  if (UI.view === 'post') {
+    const r = DB.days[UI.workDate], f = UI.draft, m = num(f.meter);
+    const dist = m != null && r.start.meter != null ? m - r.start.meter : null;
+    const box = $('#distBox b'); if (box) box.firstChild.textContent = dist != null && dist >= 0 ? dist : '—';
+    const past = UI.workDate !== today();
+    const ok = f.place && m != null && dist != null && dist >= 0 && (!past || /^\d{2}:\d{2}$/.test(f.time));
+    const b = document.querySelector('[data-act="arrive"]'); if (b) b.disabled = !ok;
+  }
+}
+
+/* 起動 */
+render();
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+// 日付が変わったときのために、画面に戻ってきたら描き直す
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !document.querySelector('.sheet-bg') && UI.view === 'home') render(); });
+</script>
+</body>
+</html>
