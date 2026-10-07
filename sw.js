@@ -1,7 +1,7 @@
 // オフラインでも開けるようにするための仕組み。
 // 方針：まずネットから最新を取りに行き、つながらないときだけ保存しておいたものを使う。
 // 画面やファイルを増やしたら FILES に足し、CACHE の番号を1つ上げる。
-const CACHE = 'tenko-log-v1-cache-1';
+const CACHE = 'tenko-log-v1-cache-2';
 const FILES = ['./', './index.html', './manifest.webmanifest', './assets/icon-180.png', './assets/icon-192.png', './assets/icon-512.png'];
 
 self.addEventListener('install', e => {
