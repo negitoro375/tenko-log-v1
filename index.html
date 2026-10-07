@@ -201,7 +201,7 @@ textarea.text { padding: 10px; min-height: 80px; width: 100%; font-weight: 500; 
    ========================================================= */
 const STORE_KEY = 'tenko-log-v1';
 const SCHEMA = 1;
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 
 const DEFAULT_SETTINGS = {
   driver: '',
@@ -393,7 +393,7 @@ function viewPre() {
   if (!UI.draft) startPre();
   const f = UI.draft;
   const lastEnd = lastMeterEnd(today());
-  const ready = f.alcohol && f.inspection && f.vehicle && f.place && num(f.meter) != null;
+  const ready = f.alcohol && f.inspection && f.vehicle.trim() && f.place.trim() && num(f.meter) != null;
   return `<main>
     <button class="back" data-act="home">← 今日に戻る</button>
     <section class="card tight"><div class="blk">
@@ -407,7 +407,7 @@ function viewPre() {
     </div></section>
     <section class="card tight"><div class="blk">
       <div class="blk-h"><span class="dot"></span>業務開始</div>
-      <div class="row"><label for="f-place">出発地点</label><select id="f-place" data-bind="place">${options(DB.settings.places, f.place, true)}</select></div>
+      <div class="row"><label for="f-place">出発地点</label>${placeInput('f-place', f.place)}</div>
       ${meterInput('meter', 'メーター開始', f.meter)}
       ${lastEnd != null ? `<div style="padding:0 14px 14px"><button class="pill" data-act="useLast" data-v="${lastEnd}">前回の終了値 ${fmtNum(lastEnd)} を使う</button></div>` : ''}
     </div></section>
@@ -415,6 +415,12 @@ function viewPre() {
     <button class="primary" data-act="depart" ${ready ? '' : 'disabled'}>出発する<small>${ready ? '乗務前点呼と業務開始を記録' : 'チェックとメーターを入れると押せます'}</small></button>
   </main>`;
 }
+// 地点は候補つきの入力欄。設定が空でも、その場で入れられる
+function placeInput(id, val) {
+  return `<input id="${id}" class="text" data-bind="place" list="${id}-list" value="${esc(val)}" placeholder="例：〇〇郵便局" autocomplete="off" style="width:190px">
+    <datalist id="${id}-list">${DB.settings.places.map(p => `<option value="${esc(p)}">`).join('')}</datalist>`;
+}
+function rememberPlace(p) { p = (p || '').trim(); if (p && !DB.settings.places.includes(p)) DB.settings.places.push(p); }
 function chk(k, on) {
   return `<button class="chk ${on ? 'on' : ''}" data-act="toggle" data-k="${k}" aria-pressed="${on}">${on ? ICON_CHECK + '済' : '未'}</button>`;
 }
@@ -431,7 +437,8 @@ function depart() {
   const r = newRecord(t);
   r.vehicle = f.vehicle.trim();
   r.pre = { time: now, alcohol: true, health: f.health, inspection: true };
-  r.start = { time: now, place: f.place, meter: num(f.meter) };
+  r.start = { time: now, place: f.place.trim(), meter: num(f.meter) };
+  rememberPlace(r.start.place);
   DB.days[t] = r;
   if (r.vehicle && !DB.settings.vehicles.includes(r.vehicle)) DB.settings.vehicles.push(r.vehicle);
   saveDB();
@@ -486,7 +493,7 @@ function viewPost() {
   const f = UI.draft, past = date !== today();
   const m = num(f.meter);
   const dist = m != null && r.start.meter != null ? m - r.start.meter : null;
-  const ready = f.place && m != null && dist != null && dist >= 0 && (!past || /^\d{2}:\d{2}$/.test(f.time));
+  const ready = f.place.trim() && m != null && dist != null && dist >= 0 && (!past || /^\d{2}:\d{2}$/.test(f.time));
   const yn = k => `<div class="seg"><button class="${!f[k].has ? 'on' : ''}" data-act="yn" data-k="${k}" data-v="0">なし</button><button class="${f[k].has ? 'on warn' : ''}" data-act="yn" data-k="${k}" data-v="1">あり</button></div>
     ${f[k].has ? `<input class="text sub" data-bind="${k}.note" value="${esc(f[k].note)}" placeholder="${k === 'incident' ? '何があったか' : '時刻・場所・内容'}">` : ''}`;
   return `<main>
@@ -495,7 +502,7 @@ function viewPost() {
     <section class="card tight"><div class="blk green">
       <div class="blk-h"><span class="dot"></span>業務終了</div>
       ${past ? `<div class="row"><label for="f-time">帰着時刻</label><input type="time" id="f-time" class="text" data-bind="time" value="${esc(f.time)}"></div>` : ''}
-      <div class="row"><label for="f-eplace">帰着地点</label><select id="f-eplace" data-bind="place">${options(DB.settings.places, f.place, true)}</select></div>
+      <div class="row"><label for="f-eplace">帰着地点</label>${placeInput('f-eplace', f.place)}</div>
       ${meterInput('meter', 'メーター終了', f.meter)}
       <div class="dist" id="distBox"><span style="font-size:13px;font-weight:700">今日の走行距離（自動）</span><b>${dist != null && dist >= 0 ? dist : '—'}<span style="font-size:13px;margin-left:3px">km</span></b></div>
       ${dist != null && dist < 0 ? '<p class="note" style="color:var(--danger);padding:0 14px 12px">メーター開始より小さい値です</p>' : ''}
@@ -513,7 +520,8 @@ function viewPost() {
 function arrive() {
   const date = UI.workDate, r = DB.days[date], f = UI.draft;
   const time = date === today() ? nowHM() : f.time;
-  r.end = { time, place: f.place, meter: num(f.meter) };
+  r.end = { time, place: f.place.trim(), meter: num(f.meter) };
+  rememberPlace(r.end.place);
   r.post = { time };
   r.waiting = { has: !!f.waiting.has, note: f.waiting.has ? f.waiting.note.trim() : '' };
   r.handling = { has: !!f.handling.has, note: f.handling.has ? f.handling.note.trim() : '' };
@@ -861,7 +869,7 @@ $('#restoreFile').addEventListener('change', e => { const f = e.target.files[0];
 function refreshButtons(full) {
   if (full) { const y = window.scrollY; render(); window.scrollTo(0, y); return; }
   if (UI.view === 'pre') {
-    const f = UI.draft, ok = f.alcohol && f.inspection && f.vehicle && f.place && num(f.meter) != null;
+    const f = UI.draft, ok = f.alcohol && f.inspection && f.vehicle.trim() && f.place.trim() && num(f.meter) != null;
     const b = document.querySelector('[data-act="depart"]');
     if (b) { b.disabled = !ok; b.querySelector('small').textContent = ok ? '乗務前点呼と業務開始を記録' : 'チェックとメーターを入れると押せます'; }
   }
@@ -870,7 +878,7 @@ function refreshButtons(full) {
     const dist = m != null && r.start.meter != null ? m - r.start.meter : null;
     const box = $('#distBox b'); if (box) box.firstChild.textContent = dist != null && dist >= 0 ? dist : '—';
     const past = UI.workDate !== today();
-    const ok = f.place && m != null && dist != null && dist >= 0 && (!past || /^\d{2}:\d{2}$/.test(f.time));
+    const ok = f.place.trim() && m != null && dist != null && dist >= 0 && (!past || /^\d{2}:\d{2}$/.test(f.time));
     const b = document.querySelector('[data-act="arrive"]'); if (b) b.disabled = !ok;
   }
 }
