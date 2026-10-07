@@ -68,6 +68,20 @@ select, .text { min-height: 44px; border: 1.5px solid var(--border); border-radi
 textarea.text { padding: 10px; min-height: 80px; width: 100%; font-weight: 500; }
 .text:focus, select:focus, textarea:focus { outline: 2px solid var(--blue-mid); border-color: var(--blue); }
 
+/* 日付ナビ（配達アプリと同じ形） */
+.date-nav { display: flex; align-items: center; gap: 8px; }
+.date-arrow { width: 44px; height: 44px; border: none; background: none; border-radius: 10px; color: var(--ink); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.date-arrow:disabled { color: #d1d5db; }
+.date-center { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 0; cursor: pointer; }
+.date-main { font-size: 20px; font-weight: 800; }
+.today-badge { background: var(--blue); color: #fff; font-size: 11px; font-weight: 800; padding: 1px 10px; border-radius: 100px; }
+.date-sub { font-size: 12px; color: var(--ink-3); font-weight: 600; }
+.date-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: none; padding: 0; margin: 0; }
+/* 記録カード */
+.rec { margin: 0; display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 8px 10px; font-size: 13px; }
+.rec dt { color: var(--ink-3); font-weight: 700; }
+.rec dd { margin: 0; font-weight: 600; word-break: break-all; }
+
 /* ステップ */
 .steps { display: flex; align-items: flex-start; justify-content: space-between; }
 .step { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 84px; }
@@ -208,7 +222,7 @@ select { -webkit-appearance: none; appearance: none; padding-right: 32px; height
    ========================================================= */
 const STORE_KEY = 'tenko-log-v1';
 const SCHEMA = 1;
-const APP_VERSION = '1.0.3';
+const APP_VERSION = '1.1.0';
 
 const DEFAULT_SETTINGS = {
   driver: '',
@@ -290,6 +304,9 @@ function toast(msg) {
 }
 const ICON_CHECK = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
 const ICON_MIC = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>';
+const ICON_PREV = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>';
+const ICON_NEXT = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>';
+const ICON_PEN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:6px"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
 const ICON_CLOCK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>';
 
 function options(list, selected, includeBlank) {
@@ -314,6 +331,7 @@ function needsBackup() { return Object.keys(DB.days).length > 0 && daysSince(DB.
 const UI = {
   tab: 'today',
   view: 'home',        // home / pre / drive / post
+  date: null,          // 今日タブで見ている日（null＝今日）
   workDate: null,      // 帰着後チェックをする日（過去日の入力にも使う）
   draft: null,         // 入力途中の値
   range: 7,            // 振り返りの期間（7 / 30 / 0＝全期間）
@@ -321,7 +339,7 @@ const UI = {
   showMemo: false
 };
 
-function setTab(t) { UI.tab = t; if (t === 'today') UI.view = 'home'; render(); window.scrollTo(0, 0); }
+function setTab(t) { UI.tab = t; if (t === 'today') { UI.view = 'home'; UI.date = null; } render(); window.scrollTo(0, 0); }
 
 function render() {
   $('#hdate').textContent = jpDate(today(), true);
@@ -335,15 +353,69 @@ function render() {
 }
 
 /* ---------- 今日（ホーム） ---------- */
+function dateNav(d) {
+  const isToday = d === today();
+  return `<section class="card"><p class="lbl">日付</p>
+    <div class="date-nav">
+      <button class="date-arrow" data-act="shiftDate" data-v="-1" aria-label="前の日">${ICON_PREV}</button>
+      <label class="date-center">
+        <span class="date-main">${esc(jpDate(d, true))}</span>
+        ${isToday ? '<span class="today-badge">今日</span>' : ''}
+        <span class="date-sub">タップして日付を変更</span>
+        <input type="date" class="date-input" data-act-change="pickDate" value="${d}" max="${today()}" aria-label="日付を選ぶ">
+      </label>
+      <button class="date-arrow" data-act="shiftDate" data-v="1" aria-label="次の日" ${isToday ? 'disabled' : ''}>${ICON_NEXT}</button>
+    </div>
+    ${isToday ? '' : '<button class="back" style="display:block;margin:8px auto 0" data-act="goToday">今日に戻る</button>'}
+  </section>`;
+}
+
+// その日の記録の中身（どの日でも、ここから修正できる）
+function recordCard(r) {
+  const yn = o => (o.has ? 'あり' + (o.note ? '（' + o.note + '）' : '') : 'なし');
+  const rows = [
+    ['乗務前点呼', `${r.pre.time || '—'} ・ アルコール ${r.pre.alcohol ? '済' : '未'} ・ 点検 ${r.pre.inspection ? '済' : '未'} ・ 体調 ${r.pre.health}`],
+    ['業務開始', `${r.start.time || '—'} ${r.start.place} ・ ${r.start.meter != null ? fmtNum(r.start.meter) + ' km' : 'メーター未入力'}`],
+    ['休憩', r.breaks.length ? r.breaks.map(b => `${b.start}–${b.end || '休憩中'}${b.place ? ' ' + b.place : ''}`).join(' ／ ') : 'なし'],
+    ['経過地点', r.waypoints.length ? r.waypoints.join('、') : '—'],
+    ['業務終了', r.status === 'done' ? `${r.end.time} ${r.end.place} ・ ${fmtNum(r.end.meter)} km（走行 ${distance(r) ?? '—'} km）` : 'まだ帰着していません'],
+    ['乗務後点呼', r.post.time || '—'],
+    ['荷待ち・荷役', `荷待ち ${yn(r.waiting)} ・ 荷役 ${yn(r.handling)}`],
+    ['事故・異常', yn(r.incident)]
+  ];
+  if (r.memo) rows.push(['備考', r.memo]);
+  return `<section class="card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <p class="lbl" style="margin:0">この日の記録</p>${r.history.length ? `<span class="badge b-amber">修正${r.history.length}件</span>` : ''}</div>
+    <dl class="rec">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+    <button class="btn2" style="margin-top:12px" data-act="edit" data-date="${r.date}">${ICON_PEN}修正する</button>
+  </section>`;
+}
+
+function viewPast(d) {
+  const r = DB.days[d];
+  let out = '<main>' + dateNav(d);
+  if (!r) {
+    out += `<section class="card" style="text-align:center"><p style="margin:4px 0 6px;font-size:15px;font-weight:800">この日の記録はありません</p>
+      <p class="note">記録をつけ忘れた日は、あとから入力できます。時刻は手で入れてください（「後日入力」として履歴に残ります）</p></section>
+      <button class="primary" data-act="backfill" data-date="${d}">この日の記録を後から入力する<small>点呼と業務記録をまとめて入力</small></button>`;
+  } else {
+    if (r.status !== 'done') out += `<button class="primary" data-act="openPost" data-date="${d}">帰着後チェックを入力する<small>この日はまだ帰着の記録がありません</small></button>`;
+    out += recordCard(r);
+  }
+  return out + '</main>';
+}
+
 function viewHome() {
   const t = today();
+  if (UI.date && UI.date !== t) return viewPast(UI.date);
+  UI.date = null;
   const rec = DB.days[t];
   const stage = !rec ? 1 : rec.status === 'done' ? 4 : 2;
   const stepCls = i => (stage > i ? 'done' : stage === i ? 'cur' : '');
   const lineCls = i => (stage > i ? 'done' : '');
   const pend = pendingPast();
   const prev = lastDone(t);
-  let out = '<main>';
+  let out = '<main>' + dateNav(t);
 
   if (pend) {
     out += `<div class="alert"><div><b>${esc(jpDate(pend))}の帰着後チェックがまだです</b><span>先に入力しておきましょう</span></div>
@@ -365,7 +437,7 @@ function viewHome() {
 
   if (stage === 1) out += `<button class="primary" data-act="go" data-view="pre">出発前チェックをはじめる<small>30秒で終わります</small></button>`;
   if (stage === 2) out += `<button class="primary" data-act="go" data-view="drive">走行中の画面へ<small>休憩・経過地点の記録</small></button>`;
-  if (stage === 4) out += `<button class="btn2" data-act="edit" data-date="${t}">今日の記録を確認・修正する</button>`;
+  if (rec) out += recordCard(rec);
 
   if (prev) {
     const issues = [prev.waiting.has && '荷待ちあり', prev.handling.has && '荷役あり', prev.incident.has && '異常あり'].filter(Boolean);
@@ -464,7 +536,8 @@ function viewDrive() {
     <section class="card" style="display:flex;align-items:center;gap:14px">
       <span class="badge" style="background:var(--blue);color:#fff;font-size:12px;padding:4px 10px">走行中</span>
       <div><div style="font-size:15px;font-weight:800">${esc(r.start.time)} ${esc(r.start.place)}を出発</div>
-      <div class="muted" style="font-size:12px;margin-top:2px">乗務前点呼 済 ・ メーター ${fmtNum(r.start.meter)} km</div></div>
+      <div class="muted" style="font-size:12px;margin-top:2px">乗務前点呼 済 ・ メーター ${fmtNum(r.start.meter)} km</div>
+      <button class="back" style="min-height:36px;font-size:13px" data-act="edit" data-date="${r.date}">出発前の内容を修正する</button></div>
     </section>
     <section class="card"><p class="lbl">休憩</p>
       <button class="break-btn ${open ? 'end' : ''}" data-act="break">${ICON_CLOCK}${open ? '休憩を終える' : '休憩をはじめる'}</button>
@@ -570,7 +643,7 @@ function viewReview() {
 /* ---------- 編集シート ---------- */
 const EDIT_FIELDS = [
   ['driver', '運転者'], ['vehicle', '車両'],
-  ['pre.time', '乗務前_時刻'], ['pre.health', '体調'],
+  ['pre.time', '乗務前_時刻'], ['pre.alcohol', '局アルコールチェック'], ['pre.inspection', '日常点検'], ['pre.health', '体調'],
   ['start.time', '業務開始_時刻'], ['start.place', '業務開始_地点'], ['start.meter', 'メーター開始'],
   ['end.time', '業務終了_時刻'], ['end.place', '業務終了_地点'], ['end.meter', 'メーター終了'],
   ['post.time', '乗務後_時刻'], ['waypoints', '主な経過地点'], ['breaks', '休憩'],
@@ -587,19 +660,24 @@ function parseBreaks(s) {
 }
 const ynText = o => (o.has ? 'あり' + (o.note ? '（' + o.note + '）' : '') : 'なし');
 
-function openEdit(date) {
-  const r = DB.days[date];
+function openEdit(date, draft) {
+  const r = draft || DB.days[date];
+  const isNew = !!draft;
   const timeIn = (k, l) => `<label class="field"><span>${l}</span><input type="time" class="text" name="${k}" value="${esc(getPath(r, k))}"></label>`;
   const yn = (k, l) => `<label class="field"><span>${l}</span><select name="${k}.has"><option value="0"${!r[k].has ? ' selected' : ''}>なし</option><option value="1"${r[k].has ? ' selected' : ''}>あり</option></select>
     <input class="text" name="${k}.note" value="${esc(r[k].note)}" placeholder="内容"></label>`;
   const bg = document.createElement('div');
   bg.className = 'sheet-bg';
+  const done = (k, l) => `<label class="field"><span>${l}</span><select name="${k}"><option value="1"${getPath(r, k) ? ' selected' : ''}>済</option><option value="0"${!getPath(r, k) ? ' selected' : ''}>未</option></select></label>`;
   bg.innerHTML = `<form class="sheet" id="editForm" data-date="${date}">
-    <h2>${esc(jpDate(date, true))}の記録</h2>
+    <h2>${esc(jpDate(date, true))}の記録${isNew ? '（後日入力）' : ''}</h2>
+    ${isNew ? '<p class="note" style="text-align:left">時刻は手で入れてください。帰着がまだの日は、業務終了とメーター終了を空のままで保存できます</p>' : ''}
     <section class="card tight"><div class="grid2">
       <label class="field"><span>運転者</span><input class="text" name="driver" value="${esc(r.driver)}"></label>
       <label class="field"><span>車両</span><input class="text" name="vehicle" value="${esc(r.vehicle)}"></label>
       ${timeIn('pre.time', '乗務前の時刻')}
+      ${done('pre.alcohol', '局アルコールチェック')}
+      ${done('pre.inspection', '日常点検')}
       <label class="field"><span>体調</span><select name="pre.health">${options(['良好', 'やや不良', '不良'], r.pre.health)}</select></label>
       ${timeIn('start.time', '業務開始の時刻')}
       <label class="field"><span>出発地点</span><input class="text" name="start.place" value="${esc(r.start.place)}" list="placeList2"></label>
@@ -618,18 +696,26 @@ function openEdit(date) {
     </section>
     ${r.history.length ? `<section class="card tight"><p class="lbl" style="margin-bottom:6px">修正履歴</p><ol class="hist">${r.history.map(h => `<li>${esc(stamp(h.at))} ${esc(h.field)}：${esc(h.from || '（空）')} → ${esc(h.to || '（空）')}</li>`).join('')}</ol></section>` : ''}
     <div class="grid2"><button type="button" class="btn2" data-act="closeSheet">閉じる</button><button type="submit" class="btn">保存する</button></div>
-    <button type="button" class="back" style="color:var(--danger);align-self:center" data-act="deleteDay" data-date="${date}">この日の記録を削除</button>
+    ${isNew ? '' : `<button type="button" class="back" style="color:var(--danger);align-self:center" data-act="deleteDay" data-date="${date}">この日の記録を削除</button>`}
   </form>`;
   document.body.appendChild(bg);
   bg.addEventListener('click', e => { if (e.target === bg) bg.remove(); });
-  bg.querySelector('form').addEventListener('submit', e => { e.preventDefault(); saveEdit(e.target); bg.remove(); });
+  bg.querySelector('form').addEventListener('submit', e => {
+    e.preventDefault();
+    const f = e.target;
+    if (isNew && (!f.elements['pre.time'].value || !f.elements['start.time'].value || num(f.elements['start.meter'].value) == null)) {
+      toast('乗務前・業務開始の時刻とメーター開始を入れてください'); return;
+    }
+    saveEdit(f, draft); bg.remove();
+  });
 }
-function saveEdit(form) {
-  const date = form.dataset.date, r = DB.days[date];
+function saveEdit(form, draft) {
+  const date = form.dataset.date, r = draft || DB.days[date];
   const before = JSON.parse(JSON.stringify(r));
   const v = n => form.elements[n].value;
   r.driver = v('driver').trim(); r.vehicle = v('vehicle').trim();
   r.pre.time = v('pre.time'); r.pre.health = v('pre.health');
+  r.pre.alcohol = v('pre.alcohol') === '1'; r.pre.inspection = v('pre.inspection') === '1';
   r.start.time = v('start.time'); r.start.place = v('start.place').trim(); r.start.meter = num(v('start.meter'));
   r.end.time = v('end.time'); r.end.place = v('end.place').trim(); r.end.meter = num(v('end.meter'));
   r.post.time = v('post.time');
@@ -639,9 +725,18 @@ function saveEdit(form) {
   r.memo = v('memo').trim();
   if (r.status !== 'done' && r.end.time && r.end.meter != null) { r.status = 'done'; if (!r.post.time) r.post.time = r.end.time; }
   const show = (k, o) => k === 'waypoints' ? o.waypoints.join('、') : k === 'breaks' ? brkText(o.breaks)
-    : ['waiting', 'handling', 'incident'].includes(k) ? ynText(o[k]) : String(getPath(o, k) ?? '');
+    : ['waiting', 'handling', 'incident'].includes(k) ? ynText(o[k])
+    : typeof getPath(o, k) === 'boolean' ? (getPath(o, k) ? '済' : '未') : String(getPath(o, k) ?? '');
   const at = new Date().toISOString();
   let n = 0;
+  if (draft) {
+    if (r.status !== 'done') { r.end.time = r.end.time || ''; }
+    r.history.push({ at, field: '後日入力', from: '', to: '記録を後から作成' });
+    DB.days[date] = r;
+    rememberPlace(r.start.place); rememberPlace(r.end.place);
+    if (r.vehicle && !DB.settings.vehicles.includes(r.vehicle)) DB.settings.vehicles.push(r.vehicle);
+    saveDB(); toast('後日入力として記録しました'); render(); return;
+  }
   EDIT_FIELDS.forEach(([k, label]) => { const a = show(k, before), b = show(k, r); if (a !== b) { r.history.push({ at, field: label, from: a, to: b }); n++; } });
   saveDB();
   toast(n ? `${n}か所を修正しました（履歴に残しました）` : '変更はありませんでした');
@@ -827,12 +922,24 @@ document.addEventListener('click', e => {
       const r = DB.days[today()]; if (!r.waypoints.includes(w)) r.waypoints.push(w);
       saveDB(); render(); break;
     }
-    case 'openPost': UI.tab = 'today'; UI.view = 'post'; UI.draft = null; startPost(el.dataset.date); render(); window.scrollTo(0, 0); break;
+    case 'openPost': UI.tab = 'today'; UI.date = el.dataset.date === today() ? null : el.dataset.date; UI.view = 'post'; UI.draft = null; startPost(el.dataset.date); render(); window.scrollTo(0, 0); break;
     case 'yn': UI.draft[k].has = v === '1'; render(); break;
     case 'memo': UI.showMemo = true; render(); break;
     case 'arrive': arrive(); break;
     case 'range': UI.range = Number(v); render(); break;
     case 'edit': openEdit(el.dataset.date); break;
+    case 'shiftDate': {
+      const d = parseYmd(UI.date || today()); d.setDate(d.getDate() + Number(v));
+      const nd = ymd(d); UI.date = nd >= today() ? null : nd; render(); break;
+    }
+    case 'goToday': UI.date = null; render(); break;
+    case 'backfill': {
+      const d = el.dataset.date, r = newRecord(d), prev = lastDone(d) || lastDone(today());
+      r.vehicle = prev ? prev.vehicle : (DB.settings.vehicles[0] || '');
+      r.start.place = r.end.place = prev ? prev.start.place : (DB.settings.places[0] || '');
+      r.pre.alcohol = true; r.pre.inspection = true;
+      openEdit(d, r); break;
+    }
     case 'closeSheet': el.closest('.sheet-bg').remove(); break;
     case 'deleteDay': {
       const d = el.dataset.date;
@@ -868,6 +975,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.dataset.actChange === 'month') { UI.month = t.value; render(); }
+  if (t.dataset.actChange === 'pickDate' && t.value) { UI.date = t.value >= today() ? null : t.value; render(); }
   if (t.tagName === 'SELECT' && t.dataset.bind) refreshButtons(true);
 });
 $('#restoreFile').addEventListener('change', e => { const f = e.target.files[0]; if (f) restore(f); e.target.value = ''; });
